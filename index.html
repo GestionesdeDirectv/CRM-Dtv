@@ -1017,18 +1017,46 @@
                      TAB 4: HERRAMIENTAS IA
                 =============================== -->
                 <div id="tab4" class="tab-content">
-                    <div class="card">
-                        <div class="card-header">📝 PARSEADOR INTELIGENTE DE NOTAS</div>
+
+                    <!-- GEMINI PARSEADOR -->
+                    <div class="card" style="border-left:3px solid var(--secondary);">
+                        <div class="card-header" style="background:linear-gradient(135deg,#050d1a,#0a2040);color:white;border-radius:var(--radius) var(--radius) 0 0;">
+                            <div class="card-header-icon" style="background:rgba(0,181,226,0.15);">🧠</div>
+                            IA — Autocompletar Ficha con Gemini
+                        </div>
                         <div class="card-body">
-                            <textarea id="raw_notes" class="form-control" style="min-height: 150px; font-family: monospace;" placeholder="Pegá acá las notas crudas..."></textarea>
-                            <button type="button" class="btn" style="margin-top: 15px; width: auto;" onclick="processNotes()">Procesar y Autocompletar Ficha 1</button>
+                            <div style="font-size:11px;font-weight:600;color:var(--text-muted);margin-bottom:8px;">Pegá coordenadas, texto de WhatsApp, datos sueltos del cliente — Gemini extrae y completa la ficha automáticamente.</div>
+                            <textarea id="raw_notes" class="form-control" style="min-height:120px;font-family:'DM Mono',monospace;font-size:12px;resize:vertical;" placeholder="Ej: -31.4167, -64.1833 · Juan Pérez · 35412987 · juan@gmail.com · 351 412-3456..."></textarea>
+                            <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;">
+                                <button type="button" class="btn" style="background:linear-gradient(135deg,#4285f4,#1a73e8);flex:1;" onclick="processNotes()">
+                                    🧠 Procesar con Gemini
+                                </button>
+                                <button type="button" class="btn btn-ghost" style="flex:0 0 auto;" onclick="document.getElementById('raw_notes').value='';document.getElementById('gemini-result').innerHTML=''">✕ Limpiar</button>
+                            </div>
+                            <div id="gemini-result" style="margin-top:10px;"></div>
                         </div>
                     </div>
+
+                    <!-- NOSIS DTVWeb -->
                     <div class="card">
-                        <div class="card-header">🔍 SIMULADOR NOSIS Y VALIDADOR BIN</div>
+                        <div class="card-header">
+                            <div class="card-header-icon">🔍</div>
+                            Validación Nosis — DTVWeb
+                        </div>
                         <div class="card-body">
                             <div class="form-grid">
-                                <div><label class="form-label">DNI — Riesgo Crediticio</label><input type="text" id="val-nosis" class="form-control" placeholder="DNI sin puntos"><button class="btn" style="margin-top:8px;width:100%;" onclick="validateNosis()">Consultar Nosis</button><div id="nosis-result" style="margin-top:10px; font-size:12px;"></div></div>
+                                <div>
+                                    <label class="form-label">DNI del titular</label>
+                                    <div style="display:flex;gap:8px;margin-bottom:10px;">
+                                        <input type="text" id="val-nosis" class="form-control" placeholder="Sin puntos · Ej: 35412987" maxlength="8" oninput="this.value=this.value.replace(/\D/g,'')">
+                                        <button class="btn" style="flex-shrink:0;background:var(--dark-blue);" onclick="validateNosis()">Consultar</button>
+                                    </div>
+                                    <div id="nosis-result"></div>
+                                    <!-- Botón acceso rápido manual -->
+                                    <button onclick="abrirDTVWeb()" style="margin-top:8px;background:none;border:1px solid var(--border);border-radius:var(--radius-sm);padding:7px 12px;font-size:10px;font-weight:700;cursor:pointer;color:var(--text-muted);font-family:'DM Sans',sans-serif;text-transform:uppercase;letter-spacing:0.5px;width:100%;">
+                                        🔗 Abrir DTVWeb manualmente
+                                    </button>
+                                </div>
                                 <div>
                                     <label class="form-label">BIN — Validar tarjeta de crédito</label>
                                     <div style="display:flex;gap:8px;">
@@ -2288,16 +2316,12 @@
         }
 
         // Herramientas IA
-        function processNotes() {
-            let t = document.getElementById('raw_notes').value.toUpperCase(); document.getElementById('raw_notes').value = t;
-            let dni = t.match(/\b\d{7,8}\b/); if(dni){ document.getElementById('f_dni').value = dni[0]; t = t.replace(dni[0],''); }
-            let mail = t.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/); if(mail){ document.getElementById('f_email').value = mail[0].toLowerCase(); t=t.replace(mail[0],''); }
-            let tel = t.match(/\b(?:0)?(?:11|[23]\d{2})[- ]?\d{4}[- ]?\d{4}\b|\b\d{10,13}\b/); if(tel){ document.getElementById('f_tel').value = tel[0].replace(/\D/g,''); t=t.replace(tel[0],''); }
-            alert("✅ Procesado.");
-        }
+        // processNotes() → redefinida más abajo con Gemini
 
         // --- FETCH REAL DESDE GOOGLE APPS SCRIPT ---
         window.apiData = null;
+        // Gemini API Key — pre-cargada (uso personal/local)
+        window.GEMINI_KEY = 'AIzaSyAQ.Ab8RN6JjWZ4vf_CrJBTiJSlPqZMIrR87CbnoTTd2lS-6PD5rHg';
 
         // ============================================================
         // GAS URL
@@ -3411,6 +3435,14 @@ Ingresá desde este enlace (tarda menos de 2 minutos):
             let lbl = document.getElementById('ficha-nombre-display');
             if (lbl) lbl.innerText = this.value ? this.value.toUpperCase().split(' ').slice(0,2).join(' ') : '';
         });
+        // Sincronizar DNI de ficha → campo Nosis automáticamente
+        document.getElementById('f_dni')?.addEventListener('change', function() {
+            let nosisInput = document.getElementById('val-nosis');
+            if (nosisInput && !nosisInput.value && this.value) {
+                nosisInput.value = this.value.replace(/\D/g,'');
+            }
+        });
+
         document.getElementById('f_nombre')?.addEventListener('input', () => {
             updateCCPreviewFull();
             actualizarUIAutoGestion();
@@ -3980,13 +4012,186 @@ ${GUIDE_TEXTS[section]}` : GUIDE_TEXTS[section];
         }
 
         // ─── NOSIS PLACEHOLDER ────────────────────────────────
-        function validateNosis() {
-            let dni=(document.getElementById('val-nosis')?.value||'').replace(/\D/g,'');
-            let el=document.getElementById('nosis-result');
-            if(!el) return;
-            if(!dni||dni.length<7){el.innerHTML='<span style="color:var(--danger);font-size:11px;font-weight:700;">⚠️ DNI inválido</span>';return;}
-            el.innerHTML='<div style="background:#fef3c7;border:1px solid #fcd34d;border-radius:6px;padding:10px 12px;font-size:11px;font-weight:700;color:#92400e;">⚠️ Nosis requiere API privada. Verificar en sistema interno.</div>';
+        // ── NOSIS PROXY via GAS ──────────────────────────────────
+        async function validateNosis() {
+            let dni = (document.getElementById('val-nosis')?.value || '').replace(/\D/g,'');
+            let el  = document.getElementById('nosis-result');
+            if (!el) return;
+            if (!dni || dni.length < 7) {
+                el.innerHTML = '<span style="color:var(--danger);font-size:11px;font-weight:700;">⚠️ Ingresá un DNI válido (7-8 dígitos)</span>';
+                return;
+            }
+            // Auto-fill val-nosis desde f_dni si está vacío
+            let dniPrincipal = document.getElementById('f_dni')?.value;
+            if (!dni && dniPrincipal) dni = dniPrincipal.replace(/\D/g,'');
+
+            el.innerHTML = `<div style="display:flex;align-items:center;gap:8px;font-size:11px;color:var(--primary);padding:8px 0;font-weight:700;">
+                <div style="width:14px;height:14px;border:2px solid var(--primary);border-top-color:transparent;border-radius:50%;animation:spin 0.8s linear infinite;flex-shrink:0;"></div>
+                Consultando DTVWeb... (puede tardar 5-10s)
+            </div>`;
+
+            try {
+                let res = await fetch(`${GAS_URL}?action=nosis&dni=${encodeURIComponent(dni)}`, {
+                    redirect: 'follow', credentials: 'omit'
+                });
+                let json = await res.json();
+
+                if (json.error) {
+                    el.innerHTML = `<div style="background:#fee2e2;border:1px solid #fca5a5;border-radius:var(--radius-sm);padding:12px;font-size:11px;font-weight:700;color:#991b1b;">
+                        ❌ Error DTVWeb: ${json.error}
+                        <div style="margin-top:6px;font-weight:500;font-size:10px;">Si el error persiste, usá el acceso directo ↓</div>
+                    </div>`;
+                    return;
+                }
+
+                // Parsear respuesta HTML de DTVWeb (ASP.NET devuelve texto mezclado)
+                let raw = (json.data || '').toUpperCase();
+                let nombre = json.nombreExtraido || '';
+
+                if (raw.includes('APROBADO')) {
+                    el.innerHTML = `<div style="background:#d0faf0;border:1px solid #6ee7b7;border-radius:var(--radius-sm);padding:14px;font-size:12px;color:#047857;">
+                        <div style="font-weight:900;font-size:14px;margin-bottom:4px;">✅ APROBADO EN NOSIS</div>
+                        ${nombre ? `<div style="font-size:11px;font-weight:700;">👤 ${nombre}</div>` : ''}
+                        <div style="font-size:10px;margin-top:4px;color:#065f46;">DNI ${dni} · Cliente apto para el alta</div>
+                    </div>`;
+                    // Auto-fill nombre si está vacío
+                    if (nombre && !document.getElementById('f_nombre').value) {
+                        document.getElementById('f_nombre').value = nombre;
+                        showToast('✅ Nombre auto-completado desde Nosis');
+                    }
+                } else if (raw.includes('RECHAZADO') || raw.includes('DENEGADO') || raw.includes('NO APTO')) {
+                    el.innerHTML = `<div style="background:#fee2e2;border:1px solid #fca5a5;border-radius:var(--radius-sm);padding:14px;font-size:12px;font-weight:800;color:#991b1b;">
+                        ❌ RECHAZADO EN NOSIS — DNI ${dni}
+                    </div>`;
+                } else if (raw.includes('NO SE ENCONTRARON') || raw.includes('SIN RESULTADOS')) {
+                    el.innerHTML = `<div style="background:#fef3c7;border:1px solid #fcd34d;border-radius:var(--radius-sm);padding:12px;font-size:11px;font-weight:700;color:#92400e;">
+                        ⚠️ DNI no encontrado en la base de Nosis de DTVWeb
+                    </div>`;
+                } else {
+                    // Respuesta recibida pero sin palabra clave — mostrar fragmento para depuración
+                    let preview = json.data ? json.data.replace(/<[^>]*>/g,'').trim().substring(0, 200) : 'Sin datos';
+                    el.innerHTML = `<div style="background:#fef3c7;border:1px solid #fcd34d;border-radius:var(--radius-sm);padding:10px;font-size:10px;color:#92400e;">
+                        <b>⚠️ Respuesta recibida — resultado no determinado:</b><br>
+                        <span style="font-family:'DM Mono',monospace;">${preview}</span>
+                    </div>`;
+                }
+
+            } catch (e) {
+                el.innerHTML = `<div style="color:var(--danger);font-size:11px;font-weight:700;">⚠️ Sin conexión al servidor. ¿Sincronizaste el GAS?</div>`;
+            }
         }
+
+        function abrirDTVWeb() {
+            let dni = document.getElementById('val-nosis')?.value || document.getElementById('f_dni')?.value || '';
+            window.open('https://dtvweb-ar.dtvpan.com/SDSNET/NOSIS', '_blank');
+            if (dni) showToast(`DNI ${dni} — consultá en la pestaña que se abrió`);
+        }
+
+        // ── GEMINI — Autocompletar ficha desde texto libre / coords ──
+        async function processNotes() {
+            const GEMINI_API_KEY = window.GEMINI_KEY || '';
+            if (!GEMINI_API_KEY) {
+                showToast('⚠️ API Key de Gemini no configurada', '#d97706');
+                return;
+            }
+
+            let rawText = document.getElementById('raw_notes').value.trim();
+            if (!rawText) { showToast('⚠️ Pegá los datos del cliente primero', '#d97706'); return; }
+
+            let resultEl = document.getElementById('gemini-result');
+            resultEl.innerHTML = `<div style="display:flex;align-items:center;gap:8px;font-size:11px;color:var(--primary);padding:8px 0;font-weight:700;">
+                <div style="width:14px;height:14px;border:2px solid var(--primary);border-top-color:transparent;border-radius:50%;animation:spin 0.8s linear infinite;flex-shrink:0;"></div>
+                🧠 Procesando con Gemini...
+            </div>`;
+
+            const prompt = `Sos un extractor de datos estructurados para un sistema de ventas de DirecTV Argentina.
+Analizá el siguiente texto (puede incluir coordenadas GPS, mensajes de WhatsApp, datos desordenados) y extraé la información en JSON estricto con estas claves exactas en minúscula:
+"nombre" (nombre y apellido completos), "dni" (solo números), "email", "telefono" (solo números, con código de área sin 15), "calle" (calle y altura únicamente), "localidad", "provincia" (nombre de provincia argentina), "cp" (código postal argentino de 4 dígitos).
+
+IMPORTANTE: Si recibís coordenadas GPS (ej: -31.4167, -64.1833), usá tu conocimiento geográfico para determinar localidad, provincia y CP argentino.
+Si no encontrás un dato, dejá el campo como "".
+Respondé ÚNICAMENTE con el JSON, sin texto adicional, sin markdown, sin explicaciones.
+
+Texto a analizar:
+${rawText}`;
+
+            try {
+                let res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${window.GEMINI_KEY}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+                });
+
+                if (res.status === 400 || res.status === 403) {
+                    window.GEMINI_KEY = ''; // reset bad key
+                    throw new Error('API Key inválida (status ' + res.status + ') — se limpiará para que la reingreses');
+                }
+
+                let data = await res.json();
+                let raw = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+                let jsonStr = raw.replace(/```json|```/g, '').trim();
+                let result = JSON.parse(jsonStr);
+
+                // Auto-completar campos
+                let filled = 0;
+                const map = {
+                    'f_nombre': result.nombre?.toUpperCase(),
+                    'f_dni':    result.dni?.replace(/\D/g,''),
+                    'f_email':  result.email,
+                    'f_tel':    result.telefono?.replace(/\D/g,''),
+                    'f_calle':  result.calle?.toUpperCase(),
+                    'f_loc':    result.localidad?.toUpperCase(),
+                    'f_cp':     result.cp,
+                };
+                for (let [id, val] of Object.entries(map)) {
+                    let el = document.getElementById(id);
+                    if (el && val) { el.value = val; filled++; }
+                }
+
+                // Provincia — buscar match
+                if (result.provincia) {
+                    let sel = document.getElementById('f_prov');
+                    if (sel) {
+                        let pMatch = [...sel.options].find(o =>
+                            o.value.includes(result.provincia.toUpperCase().substring(0,4))
+                        );
+                        if (pMatch) { sel.value = pMatch.value; filled++; }
+                    }
+                }
+
+                // Actualizar display nombre
+                let lbl = document.getElementById('ficha-nombre-display');
+                if (lbl && result.nombre) lbl.innerText = result.nombre.toUpperCase().split(' ').slice(0,2).join(' ');
+
+                // Mostrar resumen
+                resultEl.innerHTML = `<div style="background:#d0faf0;border:1px solid #6ee7b7;border-radius:var(--radius-sm);padding:12px 14px;">
+                    <div style="font-size:11px;font-weight:800;color:#047857;margin-bottom:8px;">✅ Gemini completó ${filled} campos</div>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
+                        ${Object.entries({
+                            'Nombre': result.nombre, 'DNI': result.dni,
+                            'Email': result.email, 'Tel': result.telefono,
+                            'Calle': result.calle, 'Localidad': result.localidad,
+                            'Provincia': result.provincia, 'CP': result.cp,
+                        }).filter(([,v])=>v).map(([k,v])=>`
+                            <div style="background:white;border-radius:4px;padding:5px 8px;font-size:10px;">
+                                <span style="color:var(--text-muted);font-weight:700;text-transform:uppercase;font-size:9px;">${k}</span><br>
+                                <span style="font-weight:700;color:var(--dark-blue);">${v}</span>
+                            </div>`).join('')}
+                    </div>
+                    <button onclick="switchTab('tab1',document.querySelector('.sidebar-nav li'))" style="margin-top:10px;width:100%;background:var(--primary);color:white;border:none;border-radius:var(--radius-sm);padding:8px;font-size:11px;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;">
+                        → Ver ficha completada
+                    </button>
+                </div>`;
+
+            } catch (err) {
+                resultEl.innerHTML = `<div style="background:#fee2e2;border:1px solid #fca5a5;border-radius:var(--radius-sm);padding:10px;font-size:11px;color:#991b1b;font-weight:700;">
+                    ❌ Error Gemini: ${err.message}
+                </div>`;
+            }
+        }
+
+        // Permitir setear la Gemini key desde consola o botón
+        function setGeminiKey(key) { window.GEMINI_KEY = key; showToast('✅ API Key de Gemini guardada para esta sesión'); }
 
     </script>
 </body>

@@ -1025,6 +1025,13 @@
                             IA — Autocompletar Ficha con Gemini
                         </div>
                         <div class="card-body">
+                            <!-- KEY CONFIG -->
+                            <div id="gemini-key-bar" style="background:var(--bg-body);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 14px;margin-bottom:12px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+                                <div style="font-size:10px;font-weight:700;color:var(--text-muted);flex:1;">🔑 API Key Gemini:</div>
+                                <input type="password" id="gemini-key-input" placeholder="AIzaSy..." class="form-control" style="flex:2;min-width:180px;font-family:'DM Mono',monospace;font-size:12px;padding:7px 10px;"
+                                    oninput="window.GEMINI_KEY=this.value.trim();document.getElementById('gemini-key-status').innerText=this.value.length>10?'✅ Lista':'⚪ Sin key'">
+                                <span id="gemini-key-status" style="font-size:10px;font-weight:700;color:var(--text-muted);white-space:nowrap;">⚪ Sin key</span>
+                            </div>
                             <div style="font-size:11px;font-weight:600;color:var(--text-muted);margin-bottom:8px;">Pegá coordenadas, texto de WhatsApp, datos sueltos del cliente — Gemini extrae y completa la ficha automáticamente.</div>
                             <textarea id="raw_notes" class="form-control" style="min-height:120px;font-family:'DM Mono',monospace;font-size:12px;resize:vertical;" placeholder="Ej: -31.4167, -64.1833 · Juan Pérez · 35412987 · juan@gmail.com · 351 412-3456..."></textarea>
                             <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;">
@@ -1834,6 +1841,18 @@
             document.getElementById(tabId).classList.add('active'); if(btn) btn.classList.add('active'); window.scrollTo(0,0);
             if(window.innerWidth <= 900 && !document.getElementById('sidebar').classList.contains('collapsed')) { toggleSidebar(); }
             if(tabId === 'tab5') { initChart(); }
+            if(tabId === 'tab4') {
+                // Sync DNI from ficha to Nosis input
+                let fichaOni = document.getElementById('f_dni')?.value;
+                let nosisEl  = document.getElementById('val-nosis');
+                if (nosisEl && fichaOni && !nosisEl.value) nosisEl.value = fichaOni.replace(/\D/g,'');
+                // Restore Gemini key in input if set
+                let keyEl = document.getElementById('gemini-key-input');
+                if (keyEl && window.GEMINI_KEY && !keyEl.value) {
+                    keyEl.value = window.GEMINI_KEY;
+                    document.getElementById('gemini-key-status').innerText = '✅ Lista';
+                }
+            }
             if(tabId === 'tab7') { renderReservas(); renderVendidos(); }
         }
         function nextTab(tabId) { switchTab(tabId, document.getElementById('navTab2')); }
@@ -2321,7 +2340,7 @@
         // --- FETCH REAL DESDE GOOGLE APPS SCRIPT ---
         window.apiData = null;
         // Gemini API Key — pre-cargada (uso personal/local)
-        window.GEMINI_KEY = 'AIzaSyAQ.Ab8RN6JjWZ4vf_CrJBTiJSlPqZMIrR87CbnoTTd2lS-6PD5rHg';
+        window.GEMINI_KEY = ''; // Ingresar API key desde Tab IA → botón Configurar Key
 
         // ============================================================
         // GAS URL
@@ -2697,15 +2716,22 @@
             let heroDate = document.getElementById('hoy-date-hero');
             if(heroDate) heroDate.innerText = `${dias[dH.getDay()]}, ${dH.getDate()} de ${meses[dH.getMonth()]} ${dH.getFullYear()}`;
             
-            // Calcular record diario desde historialMeses si el GAS no lo envía
+            // Calcular record diario desde porDiaSemanaActual de todos los meses
             let recordDiario = parseInt(mat.recordDiario) || 0;
             if (!recordDiario && mat.historialMeses) {
-                Object.values(mat.historialMeses).forEach(m => {
-                    if (m.semanas) m.semanas.forEach(s => {
-                        // Aproximar: neta más alta semanal / 5 días
-                        let diaEst = Math.ceil((s.netas || 0) / 5);
-                        if (diaEst > recordDiario) recordDiario = diaEst;
-                    });
+                Object.values(mat.historialMeses).forEach(mes => {
+                    // Si tiene array porDiaSemanaActual, el max es el record real
+                    if (Array.isArray(mes.porDiaSemanaActual)) {
+                        let maxDia = Math.max(...mes.porDiaSemanaActual);
+                        if (maxDia > recordDiario) recordDiario = maxDia;
+                    }
+                    // Fallback: max netas semanales / 5 días hábiles
+                    if (!recordDiario && mes.semanas) {
+                        mes.semanas.forEach(s => {
+                            let est = Math.ceil((s.netas||0) / 5);
+                            if (est > recordDiario) recordDiario = est;
+                        });
+                    }
                 });
             }
             document.getElementById('dash-record').innerHTML = `${recordDiario || 0}<span style="font-size:14px;font-weight:700;"> V.</span>`;
@@ -2993,13 +3019,18 @@
                 // Render current week panel
                 let dHoyWeek = new Date();
                 let isCurrentWeek = (keySeleccionada === currentKey && idx === semRealHoy);
-                document.getElementById('week-current-label').innerText = `📅 SEMANA ${idx+1} · ${isCurrentWeek ? 'EN CURSO' : 'SELECCIONADA'}`;
+                let semLabels = ['Semana 1','Semana 2','Semana 3','Semana 4','Semana 5'];
+                document.getElementById('week-current-label').innerText = `📅 ${semLabels[idx]||'Semana '+(idx+1)} · ${isCurrentWeek ? '⚡ EN CURSO' : 'Seleccionada'}`;
                 document.getElementById('wc-netas').innerText = semData.netas;
                 document.getElementById('wc-brutas').innerText = semData.brutas;
                 document.getElementById('wc-rechazos').innerText = semData.rechazos;
-                // Efectividad: netas / brutas (no rechazos)
+                // Efectividad: netas / brutas
                 let efCurr = semData.brutas > 0 ? ((semData.netas/semData.brutas)*100).toFixed(0)+'%' : '—';
                 document.getElementById('wc-efectividad').innerText = efCurr;
+                // Color efectividad
+                let efPct = semData.brutas > 0 ? (semData.netas/semData.brutas)*100 : 0;
+                let efEl2 = document.getElementById('wc-efectividad');
+                if (efEl2) efEl2.style.color = efPct >= 70 ? 'var(--success)' : efPct >= 50 ? 'var(--warning)' : 'var(--danger)';
                 // Color de efectividad
                 let efEl = document.getElementById('wc-efectividad');
                 if(efEl) {
@@ -3038,7 +3069,15 @@
                 document.getElementById('dash-pasado-efectividad').innerText = efectividad + '%';
 
                 // Chart: daily view
-                window.chartInstance.data.labels = ['Lu','Ma','Mi','Ju','Vi','Sa','Do']; 
+                let hoyDow = new Date().getDay(); // 0=dom..6=sab
+                let dowNames = ['Lu','Ma','Mi','Ju','Vi','Sá','Do'];
+                // Rearranjar lunes=0..domingo=6
+                let labelsWeek = [1,2,3,4,5,6,0].map((d,i) => {
+                    let label = dowNames[[1,2,3,4,5,6,0].indexOf(d)] || dowNames[i];
+                    // Resaltar día actual
+                    return (d === hoyDow && isCurrentWeek) ? label + ' ◆' : label;
+                });
+                window.chartInstance.data.labels = labelsWeek; 
                 window.chartInstance.data.datasets[0].label = 'Netas esta semana';
                 window.chartInstance.data.datasets[1].label = `Netas · ${pastMonthName}`;
                 let ds2d = window.chartInstance.data.datasets[2];
@@ -3810,53 +3849,94 @@ ${GUIDE_TEXTS[section]}` : GUIDE_TEXTS[section];
         });
 
         // ─── BIN DATABASE LOCAL + VALIDATOR ─────────────────────
+        // ─── BASE BIN ARGENTINA (antifraude, solo crédito) ──────
+        // Regla: solo aceptamos tarjetas de CRÉDITO. Débito y prepaga = rechazo.
+        // Match: prefijo más largo primero (6 > 4 > 2 > 1 dígitos)
         const BIN_DB = [
-            // NARANJA específicos (más largo primero para match prioritario)
-            { p:'589562', m:'NARANJA',       t:'CREDIT', prep:false, nota:'Naranja clásica · Crédito ✅' },
-            { p:'402918', m:'NARANJA VISA',  t:'CREDIT', prep:false, nota:'Naranja Visa · Crédito ✅' },
-            { p:'402917', m:'NARANJA VISA',  t:'CREDIT', prep:false, nota:'Naranja Visa · Crédito ✅' },
-            { p:'527571', m:'NARANJA MASTER',t:'CREDIT', prep:false, nota:'Naranja Mastercard · Crédito ✅' },
-            { p:'527572', m:'NARANJA MASTER',t:'CREDIT', prep:false, nota:'Naranja Mastercard · Crédito ✅' },
-            { p:'5275',   m:'NARANJA MASTER',t:'CREDIT', prep:false, nota:'Naranja Mastercard · Crédito ✅' },
-            // CABAL
-            { p:'589657', m:'CABAL', t:'CREDIT', prep:false, nota:'Cabal crédito' },
-            { p:'604',    m:'CABAL', t:'CREDIT', prep:false, nota:'Cabal crédito' },
-            // VISA DÉBITO — rechazar explícitamente
-            { p:'4517',   m:'VISA DÉBITO', t:'DEBIT', prep:false, nota:'❌ Visa Débito — NO aceptada' },
-            { p:'4815',   m:'VISA DÉBITO', t:'DEBIT', prep:false, nota:'❌ Visa Débito — NO aceptada' },
-            { p:'4509',   m:'VISA DÉBITO', t:'DEBIT', prep:false, nota:'❌ Visa Débito — NO aceptada' },
-            { p:'4518',   m:'VISA DÉBITO', t:'DEBIT', prep:false, nota:'❌ Visa Débito — NO aceptada' },
-            // MASTERCARD DÉBITO/PREPAGA
-            { p:'506699', m:'MASTERCARD PREPAGA', t:'CREDIT', prep:true,  nota:'❌ Prepaga — NO aceptada' },
-            { p:'485953', m:'MASTERCARD PREPAGA', t:'CREDIT', prep:true,  nota:'❌ Prepaga — NO aceptada' },
-            // AMEX
-            { p:'34',     m:'AMEX', t:'CREDIT', prep:false, nota:'CVV de 4 dígitos al FRENTE' },
-            { p:'37',     m:'AMEX', t:'CREDIT', prep:false, nota:'CVV de 4 dígitos al FRENTE' },
-            // MASTERCARD CRÉDITO (51-55)
-            { p:'51',     m:'MASTERCARD', t:'CREDIT', prep:false, nota:null },
-            { p:'52',     m:'MASTERCARD', t:'CREDIT', prep:false, nota:null },
-            { p:'53',     m:'MASTERCARD', t:'CREDIT', prep:false, nota:null },
-            { p:'54',     m:'MASTERCARD', t:'CREDIT', prep:false, nota:null },
-            { p:'55',     m:'MASTERCARD', t:'CREDIT', prep:false, nota:null },
-            // VISA (4xxx — puede ser crédito o débito, necesita confirmación API)
-            { p:'4',      m:'VISA', t:'UNKNOWN', prep:false, nota:'Puede ser Visa Crédito o Visa Débito · Confirmar con API' },
+            // ══ ❌ PREPAGAS Y BILLETERAS VIRTUALES ══
+            { p:'532379', m:'MASTERCARD', b:'Mercado Pago',  t:'PREPAGA', ok:false },
+            { p:'532368', m:'MASTERCARD', b:'Mercado Pago',  t:'PREPAGA', ok:false },
+            { p:'531324', m:'MASTERCARD', b:'Mercado Pago',  t:'PREPAGA', ok:false },
+            { p:'532375', m:'MASTERCARD', b:'Mercado Pago',  t:'PREPAGA', ok:false },
+            { p:'539949', m:'MASTERCARD', b:'Ualá',          t:'PREPAGA', ok:false },
+            { p:'541819', m:'MASTERCARD', b:'Ualá',          t:'PREPAGA', ok:false },
+            { p:'451759', m:'VISA',       b:'Lemon Cash',    t:'PREPAGA', ok:false },
+            { p:'451760', m:'VISA',       b:'Lemon Cash',    t:'PREPAGA', ok:false },
+            { p:'539958', m:'MASTERCARD', b:'Prex',          t:'PREPAGA', ok:false },
+            { p:'535158', m:'MASTERCARD', b:'Prex',          t:'PREPAGA', ok:false },
+            { p:'451781', m:'VISA',       b:'Personal Pay',  t:'PREPAGA', ok:false },
+            { p:'506699', m:'MASTERCARD', b:'Prepaga genérica',t:'PREPAGA',ok:false},
+            { p:'485953', m:'MASTERCARD', b:'Prepaga genérica',t:'PREPAGA',ok:false},
+            // ══ ❌ DÉBITOS ══
+            { p:'451733', m:'VISA', b:'Brubank',  t:'DÉBITO', ok:false },
+            { p:'403816', m:'VISA', b:'Brubank',  t:'DÉBITO', ok:false },
+            { p:'4509',   m:'VISA', b:'Genérica', t:'DÉBITO', ok:false },
+            { p:'4517',   m:'VISA', b:'Genérica', t:'DÉBITO', ok:false },
+            { p:'4518',   m:'VISA', b:'Genérica', t:'DÉBITO', ok:false },
+            { p:'4815',   m:'VISA', b:'Genérica', t:'DÉBITO', ok:false },
+            // ══ ✅ NARANJA ══
+            { p:'589562', m:'NARANJA',        b:'Tarjeta Naranja', t:'CRÉDITO', ok:true },
+            { p:'402918', m:'NARANJA VISA',   b:'Tarjeta Naranja', t:'CRÉDITO', ok:true },
+            { p:'402917', m:'NARANJA VISA',   b:'Tarjeta Naranja', t:'CRÉDITO', ok:true },
+            { p:'527571', m:'NARANJA MASTER', b:'Tarjeta Naranja', t:'CRÉDITO', ok:true },
+            { p:'527572', m:'NARANJA MASTER', b:'Tarjeta Naranja', t:'CRÉDITO', ok:true },
+            // ══ ✅ CABAL ══
+            { p:'589657', m:'CABAL', b:'Credicoop',          t:'CRÉDITO', ok:true },
+            { p:'604',    m:'CABAL', b:'Cabal genérica',     t:'CRÉDITO', ok:true },
+            // ══ ✅ AMEX ══
+            { p:'377798', m:'AMEX', b:'American Express',    t:'CRÉDITO', ok:true, nota:'CVV 4 dígitos al FRENTE' },
+            { p:'376441', m:'AMEX', b:'Galicia Amex',        t:'CRÉDITO', ok:true, nota:'CVV 4 dígitos al FRENTE' },
+            { p:'377792', m:'AMEX', b:'Santander Amex',      t:'CRÉDITO', ok:true, nota:'CVV 4 dígitos al FRENTE' },
+            { p:'34',     m:'AMEX', b:'American Express',    t:'CRÉDITO', ok:true, nota:'CVV 4 dígitos al FRENTE' },
+            { p:'37',     m:'AMEX', b:'American Express',    t:'CRÉDITO', ok:true, nota:'CVV 4 dígitos al FRENTE' },
+            // ══ ✅ VISA CRÉDITO — bancos identificados ══
+            { p:'402924', m:'VISA', b:'Santander',           t:'CRÉDITO', ok:true },
+            { p:'402944', m:'VISA', b:'Banco Nación',        t:'CRÉDITO', ok:true },
+            { p:'414740', m:'VISA', b:'BBVA Francés',        t:'CRÉDITO', ok:true },
+            { p:'427026', m:'VISA', b:'ICBC',                t:'CRÉDITO', ok:true },
+            { p:'433606', m:'VISA', b:'Macro',               t:'CRÉDITO', ok:true },
+            { p:'451766', m:'VISA', b:'Banco Provincia',     t:'CRÉDITO', ok:true },
+            { p:'451767', m:'VISA', b:'Banco Provincia',     t:'CRÉDITO', ok:true },
+            { p:'476520', m:'VISA', b:'Banco Córdoba',       t:'CRÉDITO', ok:true },
+            { p:'491589', m:'VISA', b:'Galicia',             t:'CRÉDITO', ok:true },
+            { p:'421238', m:'VISA', b:'Banco Hipotecario',   t:'CRÉDITO', ok:true },
+            { p:'450799', m:'VISA', b:'HSBC',                t:'CRÉDITO', ok:true },
+            // ══ ✅ MASTERCARD CRÉDITO — bancos identificados ══
+            { p:'532369', m:'MASTERCARD', b:'Macro',         t:'CRÉDITO', ok:true },
+            { p:'532371', m:'MASTERCARD', b:'Macro',         t:'CRÉDITO', ok:true },
+            { p:'525642', m:'MASTERCARD', b:'Galicia',       t:'CRÉDITO', ok:true },
+            { p:'541315', m:'MASTERCARD', b:'BBVA Francés',  t:'CRÉDITO', ok:true },
+            { p:'542289', m:'MASTERCARD', b:'Santander',     t:'CRÉDITO', ok:true },
+            { p:'546592', m:'MASTERCARD', b:'Banco Nación',  t:'CRÉDITO', ok:true },
+            { p:'548168', m:'MASTERCARD', b:'Banco Provincia',t:'CRÉDITO',ok:true },
+            { p:'524849', m:'MASTERCARD', b:'ICBC',          t:'CRÉDITO', ok:true },
+            { p:'535593', m:'MASTERCARD', b:'Banco Córdoba', t:'CRÉDITO', ok:true },
+            // ══ ✅ MASTERCARD CRÉDITO — rangos genéricos (51-55, 222100-272099) ══
+            { p:'51', m:'MASTERCARD', b:'', t:'CRÉDITO', ok:true },
+            { p:'52', m:'MASTERCARD', b:'', t:'CRÉDITO', ok:true },
+            { p:'53', m:'MASTERCARD', b:'', t:'CRÉDITO', ok:true },
+            { p:'54', m:'MASTERCARD', b:'', t:'CRÉDITO', ok:true },
+            { p:'55', m:'MASTERCARD', b:'', t:'CRÉDITO', ok:true },
+            // ══ VISA genérica (UNKNOWN hasta que API confirme tipo) ══
+            { p:'4', m:'VISA', b:'', t:'UNKNOWN', ok:null, nota:'⚠️ Puede ser Crédito o Débito — verificar con el cliente' },
         ];
 
         function detectarBinLocal(raw) {
-            let sorted = [...BIN_DB].sort((a,b) => b.p.length - a.p.length);
-            return sorted.find(e => raw.startsWith(e.p)) || null;
+            // Match por prefijo más largo primero
+            return [...BIN_DB].sort((a,b) => b.p.length - a.p.length).find(e => raw.startsWith(e.p)) || null;
         }
 
-        const MARCAS_CREDITO_ACEPTADAS = ['VISA','MASTERCARD','NARANJA','NARANJA VISA','NARANJA MASTER','AMEX','CABAL'];
-
-        function resolverAceptacion(marca, tipo, prepaid) {
-            if (prepaid) return { ok: false, label: '❌ PREPAGA — NO ACEPTADA', color: '#b91c1c', bg: '#fee2e2' };
-            if (tipo === 'DEBIT') return { ok: false, label: '❌ DÉBITO — NO ACEPTADA', color: '#1d4ed8', bg: '#dbeafe' };
-            if (tipo === 'CREDIT' && MARCAS_CREDITO_ACEPTADAS.some(m => marca.includes(m.split(' ')[0])))
-                return { ok: true, label: '✅ CRÉDITO — ACEPTADA', color: '#065f46', bg: '#d0faf0' };
-            if (tipo === 'UNKNOWN' || !tipo)
-                return { ok: null, label: '⚠️ CONFIRMAR — puede ser débito', color: '#92400e', bg: '#fef3c7' };
-            return { ok: false, label: '❌ NO ACEPTADA', color: '#b91c1c', bg: '#fee2e2' };
+        function resolverAceptacion(marca, tipo, prepaid, localOk) {
+            // Si la base local tiene veredicto explícito, usarlo
+            if (localOk === true)  return { ok:true,  label:'✅ CRÉDITO — ACEPTADA',              color:'#065f46', bg:'#d0faf0' };
+            if (localOk === false && tipo === 'PREPAGA') return { ok:false, label:'❌ PREPAGA — NO ACEPTADA', color:'#b91c1c', bg:'#fee2e2' };
+            if (localOk === false && tipo === 'DÉBITO')  return { ok:false, label:'❌ DÉBITO — NO ACEPTADA',  color:'#1d4ed8', bg:'#dbeafe' };
+            if (localOk === false) return { ok:false, label:'❌ NO ACEPTADA', color:'#b91c1c', bg:'#fee2e2' };
+            // Fallback por tipo de API
+            if (prepaid) return { ok:false, label:'❌ PREPAGA — NO ACEPTADA', color:'#b91c1c', bg:'#fee2e2' };
+            if (tipo === 'DEBIT') return { ok:false, label:'❌ DÉBITO — NO ACEPTADA', color:'#1d4ed8', bg:'#dbeafe' };
+            if (tipo === 'CREDIT') return { ok:true, label:'✅ CRÉDITO — ACEPTADA', color:'#065f46', bg:'#d0faf0' };
+            return { ok:null, label:'⚠️ CONFIRMAR TIPO — puede ser débito', color:'#92400e', bg:'#fef3c7' };
         }
 
         async function validateBin() {
@@ -4115,21 +4195,29 @@ Respondé ÚNICAMENTE con el JSON, sin texto adicional, sin markdown, sin explic
 Texto a analizar:
 ${rawText}`;
 
+            // Intentar con gemini-1.5-flash, fallback a gemini-pro
+            const MODELS = ['gemini-1.5-flash', 'gemini-1.5-flash-latest', 'gemini-pro'];
+            let res, data, lastErr;
+            for (let model of MODELS) {
+                try {
+                    res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${window.GEMINI_KEY}`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+                    });
+                    if (res.ok) { data = await res.json(); break; }
+                    lastErr = `HTTP ${res.status} (${model})`;
+                    if (res.status === 400 || res.status === 403) break; // bad key, no retry
+                } catch(e) { lastErr = e.message; }
+            }
             try {
-                let res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${window.GEMINI_KEY}`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
-                });
-
-                if (res.status === 400 || res.status === 403) {
-                    window.GEMINI_KEY = ''; // reset bad key
-                    throw new Error('API Key inválida (status ' + res.status + ') — se limpiará para que la reingreses');
-                }
-
-                let data = await res.json();
+                if (!res || !res.ok) throw new Error(lastErr || 'Sin respuesta de la API');
+                if (!data) data = await res.json();
+                // Mostrar error de API si viene
+                if (data.error) throw new Error(data.error.message || JSON.stringify(data.error));
                 let raw = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
-                let jsonStr = raw.replace(/```json|```/g, '').trim();
+                if (!raw) throw new Error('Respuesta vacía del modelo');
+                let jsonStr = raw.replace(/```json\n?|```/g, '').trim();
                 let result = JSON.parse(jsonStr);
 
                 // Auto-completar campos

@@ -4724,7 +4724,7 @@ Texto a analizar:
 ${rawText}`;
 
             // Intentar con gemini-1.5-flash, fallback a gemini-pro
-            const MODELS = ['gemini-1.5-flash', 'gemini-1.5-flash-latest', 'gemini-pro'];
+            const MODELS = ['Gemini 2.0 Flash LITE', 'gemini-1.5-flash-latest', 'gemini-pro'];
             let res, data, lastErr;
             for (let model of MODELS) {
                 try {
@@ -4982,7 +4982,7 @@ ${rawText}`;
             el.innerHTML = `<div style="font-size:11px;color:var(--text-muted);padding:6px 0;">🔄 Consultando con Gemini...</div>`;
             const prompt = `Sos un experto en geografía argentina. Dado el siguiente dato (puede ser coordenadas GPS, un código postal o un nombre de localidad), respondé ÚNICAMENTE con un JSON estricto sin markdown con las claves: "localidad", "provincia", "cp" (código postal argentino de 4 caracteres, formato CPA si aplica), "zona" (breve descripción de la zona/región).
 Dato: ${input}`;
-            const MODELS = ['gemini-1.5-flash', 'gemini-1.5-flash-latest', 'gemini-pro'];
+            const MODELS = ['Gemini 2.0 Flash LITE', 'gemini-1.5-flash-latest', 'gemini-pro'];
             let res, data, lastErr;
             for (let model of MODELS) {
                 try {
@@ -5112,7 +5112,7 @@ Cualquier duda, escribime por aquí 🙌`;
 Datos del cliente: nombre "${c.nombre || 'sin nombre'}", plan "${c.plan}" a ${c.montoFmt}/mes.
 Pedido del asesor: ${userPrompt}
 Escribí el mensaje de WhatsApp final, en tono cálido, profesional y cercano (uso de algún emoji está bien, sin exagerar). Respondé ÚNICAMENTE con el texto del mensaje, sin explicaciones ni markdown.`;
-            const MODELS = ['gemini-1.5-flash', 'gemini-1.5-flash-latest', 'gemini-pro'];
+            const MODELS = ['Gemini 2.0 Flash LITE', 'gemini-1.5-flash-latest', 'gemini-pro'];
             let res, data, lastErr;
             for (let model of MODELS) {
                 try {
